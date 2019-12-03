@@ -1,0 +1,147 @@
+---
+title: "R fianl teamwork"
+author: "Zongchuanhao Hanrui Zhouhui Qiuhongcheng"
+date: "2019/12/3"
+output: html_document
+---
+
+载入需要的包 
+```{r,include = FALSE}
+library(ggplot2)
+library(quantmod)
+library(treemapify)
+library(ggpubr)
+library(dplyr)
+library(purrr)
+library(plotly)
+
+```
+
+功能1：绘制股票数据概览图
+```{r}
+SSE50_basics <- read.csv("F:/R final/SSE50_basics.csv")
+tbody.style = tbody_style(color = "black",
+                          fill = c("#bdbdbd","#7d7d7d"), hjust=1, x=0.9)
+SSE50_basics <- head(SSE50_basics,10) %>%
+  ggtexttable(theme = ttheme(
+    colnames.style = colnames_style(color = "black", fill = "#7d7d7d"),
+    tbody.style = tbody.style
+  ))
+SSE50_basics
+```
+
+功能2：绘制k线图
+```{r}
+SSE_Index <- read.csv("F:/R final/SSE_Index.csv")
+trade_date <- read.csv("F:/R final/trade_date.csv")
+SSE_Index <- head(SSE_Index,30)
+plot_ly(x = SSE_Index$trade_date, type="candlestick",
+        open = SSE_Index$open, close = SSE_Index$close,
+        high = SSE_Index$high, low = SSE_Index$low) %>%
+  layout(title = "上证综指（30日）")
+```
+
+功能3：绘制工业指数柱形图
+```{r}
+ind_returns <- read.csv("F:/R final/ind_returns.csv")
+get_color <- function (x){
+  if (x > 0){
+    return(sprintf("rgb(%d,0,0)",floor(255*(1-exp(-x*100)))));
+  }
+  else      {
+    return(sprintf("rgb(0,%d,0)",ceiling(255*(1-exp(x*100)))));
+  }
+}
+
+ind_returns["color"] = map_chr(ind_returns$returns, get_color)
+row.names(ind_returns)<- c("能源","材料","建筑","食品",
+                           "医疗","金融","信科","电信","公用")
+ind_indices_barchart <- plot_ly(y = reorder(row.names(ind_returns), ind_returns$returns), 
+                                x = abs(ind_returns$returns),
+                                marker =list(color = ind_returns$color),
+                                type = 'bar',orientation = 'h')  %>%
+  layout(title = "沪深300行业涨幅(日）")
+
+ind_indices_barchart
+```
+
+功能4：绘制个股图
+```{r}
+ZGLT <- read.csv("F:/R final/ZGLT.csv")
+ZGLT_return = ZGLT$close[nrow(ZGLT)]/ZGLT$pre_close[nrow(ZGLT)] - 1 
+
+ZGLT_name <- list(
+  xref = 'paper',
+  yref = 'paper',
+  x = 0.50,
+  y = 0.99,
+  xanchor = 'right',
+  yanchor = 'middle',
+  text = '中国联通\n',
+  font = list(family = '宋体',
+              size = 30,
+              color = '#efefef'),
+  showarrow = FALSE)
+
+ZGLT_price <- list(
+  xref = 'paper',
+  yref = 'paper',
+  x = 0.52,
+  y = 0.85,
+  xanchor = 'right',
+  yanchor = 'middle',
+  text = ~paste0(as.character(ZGLT$close[nrow(ZGLT)]),'(',round(ZGLT_return*100,2),'%',')'), 
+  font = list(family = 'Times New Roman',
+              size = 26,
+              color = get_color(ZGLT_return)),
+  showarrow = FALSE)
+
+ZGLT_HL <- list(  
+  xref = 'paper',
+  yref = 'paper',
+  x = 0.84,
+  y = 0.80,
+  xanchor = 'right',
+  yanchor = 'middle',
+  text = ~paste0("H ",ZGLT$high[nrow(ZGLT)],"\nL ",ZGLT$low[nrow(ZGLT)]),
+  font = list(family = 'Times New Roman',
+              size = 16,
+              color = '#cfcfcf'),
+  showarrow = FALSE)
+
+ZGLT_plot <- plot_ly(ZGLT, y=~close,x=~paste0(substr(trade_date,5,6),'-',substr(trade_date,7,8)),
+                     type = 'scatter', mode = 'lines',
+                     line = list(color = '#adadad')) %>%
+  layout(paper_bgcolor='black', plot_bgcolor='black',
+         xaxis = list(title = ""),
+         yaxis = list(title = "", range=c(min(ZGLT$close),max(ZGLT$close)*1.5 - 0.5*min(ZGLT$close))),
+         margin =list(autoexpand = TRUE, r=10,l=10))%>%
+  layout(annotations = ZGLT_name)%>%
+  layout(annotations = ZGLT_price)%>%
+  layout(annotations = ZGLT_HL)
+ZGLT_plot
+
+```
+
+功能5：绘制上证50成分股树状图
+```{r}
+SSE50 <- read.csv("F:/R final/SSE50.csv")
+get_hex <- function(rgb){
+  rgb <- strsplit(substr(rgb,5,nchar(rgb)-1),',')[[1]]
+  rgb <- as.integer(rgb)
+  rgb <- as.character(as.hexmode(rgb))
+  hex <- "#"
+  for (i in rgb){
+    if (nchar(i) == 1){i <- paste0('0',i)} 
+    hex <- paste0(hex, i)
+  }
+  return(hex)
+}
+SSE50["color"] = map_chr(SSE50$returns, get_color) %>% map_chr(get_hex)
+ggplot(SSE50, aes(area = mv, label = names)) +
+  geom_treemap(fill = SSE50$color) +
+  geom_treemap_text(fontface = "bold", colour = "white", place = "centre",
+                    grow = TRUE) + 
+  ggtitle("上证50成分股涨跌情况")
+```
+
